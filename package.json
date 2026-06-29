@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "cross-env HOST=0.0.0.0 next dev",
     "build": "next build",
+    "build:mobile": "cross-env BUILD_TARGET=mobile next build",
     "start": "next start",
     "lint": "eslint"
   },
