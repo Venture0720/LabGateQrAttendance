@@ -57,7 +57,12 @@ export default function LoginPage() {
       } else if (authError.message.toLowerCase().includes("rate limit")) {
         setError("Слишком много попыток входа. Подождите немного или проверьте настройки лимитов в Supabase.");
       } else {
-        setError("Неверный логин или пароль");
+        // Показываем конкретную ошибку для отладки, если это не просто неверные данные
+        if (authError.message === "Invalid login credentials") {
+          setError("Неверный логин или пароль");
+        } else {
+          setError(authError.message);
+        }
       }
       setLoading(false);
       return;
@@ -227,16 +232,18 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-6" autoComplete="off">
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider ml-1">Логин</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className={`w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 ${cfg.ring} focus:bg-white/[0.05] transition-all text-base`}
-                  placeholder={selected === "professor" ? "prof" : "student"}
-                  name="lg-user"
-                  autoComplete="off"
-                  required
-                />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className={`w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-4 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 ${cfg.ring} focus:bg-white/[0.05] transition-all text-base`}
+                    placeholder={selected === "professor" ? "prof" : "student"}
+                    name="lg-user"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    required
+                  />
               </div>
 
               <div className="space-y-2">

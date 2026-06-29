@@ -72,21 +72,37 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchLogs();
+
+    // Real-time updates for reports
+    const channel = supabase
+      .channel('reports-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'visitors' }, () => {
+        fetchLogs();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchLogs = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("visitors")
-      .select(`*, rooms(name)`)
+      .select(`
+        *,
+        rooms(name),
+        profiles(username, role)
+      `)
       .order("scanned_at", { ascending: false });
 
     if (data) {
       const formattedLogs: ScanLog[] = data.map((v: any) => ({
         id: v.id,
-        userName: v.name,
-        email: v.email || v.name.toLowerCase() + '@labgate.local', // Fallback for email
-        role: v.name.includes('prof') ? 'professor' : 'student', // Heuristic role
+        userName: v.name || v.profiles?.username || "Неизвестный",
+        email: v.profiles?.username ? `${v.profiles.username.toLowerCase()}@labgate.local` : "no-email@labgate.local",
+        role: v.profiles?.role || (v.name.toLowerCase().includes('prof') ? 'professor' : 'student'),
         status: 'success',
         scannedAt: v.scanned_at,
         roomName: v.rooms?.name || "Удаленная комната"

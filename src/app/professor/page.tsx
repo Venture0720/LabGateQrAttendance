@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import type { Room, Visitor, Profile } from "@/types";
 import QRCode from "qrcode";
@@ -332,20 +332,25 @@ export default function ProfessorPage() {
                     {visitors.length === 0 ? (
                       <p className="text-xs text-white/30 text-center py-4 font-medium">Пока нет посетителей</p>
                     ) : (
-                      <div className="space-y-2">
+                    <div className="space-y-2">
+                      <AnimatePresence initial={false}>
                         {visitors.map((visitor) => (
-                          <div
+                          <motion.div
                             key={visitor.id}
-                            className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5"
+                            initial={{ opacity: 0, x: -20, height: 0 }}
+                            animate={{ opacity: 1, x: 0, height: "auto" }}
+                            exit={{ opacity: 0, x: 20, height: 0 }}
+                            className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5 overflow-hidden"
                           >
                             <p className="text-sm font-medium truncate pr-2 text-white/90">{visitor.name}</p>
                             <span className="text-xs text-white/40 flex items-center gap-1 shrink-0">
                               <Clock className="w-3 h-3" />
                               {new Date(visitor.scanned_at).toLocaleTimeString("ru-RU", { hour: '2-digit', minute: '2-digit' })}
                             </span>
-                          </div>
+                          </motion.div>
                         ))}
-                      </div>
+                      </AnimatePresence>
+                    </div>
                     )}
                   </motion.div>
                 </div>
