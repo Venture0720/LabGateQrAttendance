@@ -3,21 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Zap, AlertCircle, Flashlight, QrCode } from "lucide-react";
+import { X, Zap, AlertCircle, Flashlight, QrCode, CheckCircle2, XCircle } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+
+type ScanState = "idle" | "starting" | "scanning" | "submitting" | "success" | "error";
 
 export default function ScanPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<import("qr-scanner").default | null>(null);
 
-  const [error, setError] = useState("");
+  const [scanState, setScanState] = useState<ScanState>("idle");
+  const [cameraError, setCameraError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [hasFlash, setHasFlash] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
-  const [ready, setReady] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
 
+  // Success data
+  const [roomName, setRoomName] = useState("");
+  const [userName, setUserName] = useState("");
+
+  // Auth check
   useEffect(() => {
     checkAuth();
     return () => stopScanner();
@@ -32,7 +39,7 @@ export default function ScanPage() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, username")
       .eq("id", user.id)
       .single();
 
@@ -40,23 +47,22 @@ export default function ScanPage() {
       router.push("/login");
       return;
     }
-    
-    // We don't auto-start anymore to ensure user gesture for permission
-    // But we'll check if we can pre-warm the dynamic import
+
+    setUserName(profile.username || "");
+    // Pre-warm dynamic import
     import("qr-scanner").catch(() => {});
   }
 
   const startScanner = async () => {
-    if (ready || isStarting) return;
-    setIsStarting(true);
-    setError("");
+    if (scanState === "starting" || scanState === "scanning") return;
+    setScanState("starting");
+    setCameraError("");
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("MEDIA_DEVICES_NOT_SUPPORTED");
       }
 
-      // Dynamic import — qr-scanner uses browser APIs
       const QrScanner = (await import("qr-scanner")).default;
 
       if (!videoRef.current) return;
@@ -74,53 +80,40 @@ export default function ScanPage() {
       );
 
       scannerRef.current = scanner;
-
       await scanner.start();
-      setReady(true);
-      setIsStarting(false);
+      setScanState("scanning");
 
-      // Check flash support
-      let hasCam = false;
       try {
-        hasCam = await QrScanner.hasCamera();
-      } catch (e) {
-        console.warn("hasCamera check failed", e);
-      }
-
-      if (hasCam) {
-        try {
-          const fl = await scanner.hasFlash();
-          setHasFlash(fl);
-        } catch {
-          // Flash not supported
-        }
+        const fl = await scanner.hasFlash();
+        setHasFlash(fl);
+      } catch {
+        // Flash not supported
       }
     } catch (e: unknown) {
       const err = e as Error;
       console.error("Scanner start error:", err);
-      setIsStarting(false);
-      
+
       const isHTTP = !window.isSecureContext && window.location.hostname !== "localhost";
       const isMediaNotSupported = err.message === "MEDIA_DEVICES_NOT_SUPPORTED" || !navigator.mediaDevices;
       const isCapacitor = (window as any).Capacitor;
 
+      let msg = "";
       if (isHTTP || isMediaNotSupported) {
-        setError("Камера требует HTTPS или localhost. Если вы на телефоне через IP, ОБЯЗАТЕЛЬНО используйте Chrome Flags (Insecure origins treated as secure). Если вы в Android Studio — проверьте, что в capacitor.config.ts стоит androidScheme: 'https'.");
+        msg = "Камера требует HTTPS. Убедитесь, что приложение открыто по защищённому соединению.";
       } else if (err.name === "NotAllowedError" || err.message?.includes("permission")) {
-        let msg = "Доступ к камере отклонен. ";
-        if (isCapacitor) {
-          msg += "Убедитесь, что вы добавили <uses-permission android:name=\"android.permission.CAMERA\" /> в AndroidManifest.xml и ПЕРЕСОБРАЛИ приложение в Android Studio.";
-        } else {
-          msg += "Пожалуйста, разрешите доступ в появившемся окне браузера или в настройках сайта.";
-        }
-        setError(msg);
+        msg = isCapacitor
+          ? "Доступ к камере отклонён. Проверьте разрешения в настройках приложения."
+          : "Доступ к камере отклонён. Разрешите доступ в настройках браузера.";
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        setError("Камера не найдена. Убедитесь, что у браузера есть доступ к оборудованию и камера не закрыта чем-то.");
+        msg = "Камера не найдена на этом устройстве.";
       } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-        setError("Камера уже используется другим приложением (например, другим браузером или приложением Камера). Закройте их и попробуйте снова.");
+        msg = "Камера занята другим приложением. Закройте его и попробуйте снова.";
       } else {
-        setError(`Техническая ошибка: ${err.name} - ${err.message || "Не удалось запустить камеру"}. Попробуйте перезагрузить страницу.`);
+        msg = `Ошибка: ${err.message || "Не удалось запустить камеру"}`;
       }
+
+      setCameraError(msg);
+      setScanState("error");
     }
   };
 
@@ -130,16 +123,89 @@ export default function ScanPage() {
     scannerRef.current = null;
   };
 
-  const handleResult = (text: string) => {
+  const handleResult = async (text: string) => {
+    // Extract room ID from QR URL like https://...labgate.../room/UUID
     const match = text.match(/\/room\/([a-f0-9-]{36})/);
-    if (match) {
-      stopScanner();
-      // Small vibration feedback if supported
-      if (navigator.vibrate) navigator.vibrate(100);
-      router.push(match[0]);
-    } else {
-      setError("Это не QR-код LabGate");
-      setTimeout(() => setError(""), 2000);
+    if (!match) {
+      // Not a LabGate QR — ignore silently (scanner keeps running)
+      return;
+    }
+
+    const roomId = match[1];
+    stopScanner();
+    setScanState("submitting");
+
+    if (navigator.vibrate) navigator.vibrate(100);
+
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      // Get profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username, role")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile || profile.role !== "student") {
+        setSubmitError("Только студенты могут сканировать QR-коды.");
+        setScanState("error");
+        return;
+      }
+
+      // Get room info
+      const { data: room, error: roomError } = await supabase
+        .from("rooms")
+        .select("name, is_active")
+        .eq("id", roomId)
+        .single();
+
+      if (roomError || !room) {
+        setSubmitError("Комната не найдена. Попросите преподавателя создать комнату заново.");
+        setScanState("error");
+        return;
+      }
+
+      if (!room.is_active) {
+        setSubmitError(`Комната «${room.name}» сейчас неактивна.`);
+        setScanState("error");
+        return;
+      }
+
+      // Register visit
+      const { error: visitError } = await supabase.from("visitors").insert({
+        room_id: roomId,
+        profile_id: user.id,
+        name: profile.username,
+      });
+
+      if (visitError) {
+        console.error("Visit insert error:", visitError);
+        // Handle duplicate entry gracefully
+        if (visitError.code === "23505" || visitError.message?.includes("duplicate")) {
+          setRoomName(room.name);
+          setScanState("success");
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        } else {
+          setSubmitError(visitError.message);
+          setScanState("error");
+        }
+        return;
+      }
+
+      setRoomName(room.name);
+      setScanState("success");
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      setSubmitError(err.message || "Произошла ошибка при регистрации.");
+      setScanState("error");
     }
   };
 
@@ -153,6 +219,120 @@ export default function ScanPage() {
     setFlashOn(!flashOn);
   };
 
+  const resetScanner = () => {
+    setCameraError("");
+    setSubmitError("");
+    setScanState("idle");
+  };
+
+  // ── SUCCESS SCREEN ──────────────────────────────────────────────────────────
+  if (scanState === "success") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-black">
+        <div className="liquid-blob top-[-10%] right-[-10%] w-80 h-80 opacity-20" />
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="glass-card p-10 text-center max-w-sm w-full relative z-10"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.15, type: "spring", stiffness: 260, damping: 20 }}
+            className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-8 shadow-2xl"
+          >
+            <CheckCircle2 className="w-12 h-12 text-white/80" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
+            <h1 className="text-3xl font-bold mb-2 text-white/90 tracking-tight">Готово!</h1>
+            <p className="text-white/40 text-sm mb-6">Ваш визит успешно зафиксирован</p>
+
+            <div className="py-4 px-6 bg-white/[0.03] border border-white/5 rounded-2xl mb-6">
+              <p className="text-[10px] text-white/20 uppercase tracking-[0.2em] font-bold mb-1">Лаборатория</p>
+              <p className="text-lg font-bold text-white/80 leading-tight">{roomName}</p>
+            </div>
+
+            <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">
+              Студент: <span className="text-white/60">{userName}</span>
+            </p>
+          </motion.div>
+
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => router.push("/student")}
+            className="mt-10 w-full glass-button py-4 text-sm font-bold text-white/90"
+          >
+            Понятно
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ── SUBMITTING SCREEN ───────────────────────────────────────────────────────
+  if (scanState === "submitting") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-black">
+        <div className="relative">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-2 border-white/5 border-t-white/40 rounded-full"
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-pulse" />
+          </div>
+        </div>
+        <p className="mt-6 text-white/20 font-medium text-sm tracking-widest uppercase">Регистрация входа...</p>
+      </div>
+    );
+  }
+
+  // ── SUBMIT ERROR SCREEN ─────────────────────────────────────────────────────
+  if (scanState === "error" && submitError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-black">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass-card p-8 text-center max-w-sm w-full"
+        >
+          <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+            <XCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h1 className="text-xl font-bold mb-2 text-white/90">Ошибка регистрации</h1>
+          <p className="text-white/40 text-sm mb-8 leading-relaxed">{submitError}</p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={resetScanner}
+              className="w-full glass-button py-4 text-sm font-bold text-white/90"
+            >
+              Сканировать снова
+            </button>
+            <button
+              onClick={() => router.push("/student")}
+              className="w-full py-3 text-xs font-medium text-white/30 hover:text-white transition-colors"
+            >
+              В личный кабинет
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ── CAMERA SCANNER SCREEN ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-black flex flex-col relative overflow-hidden">
       {/* Camera */}
@@ -163,7 +343,7 @@ export default function ScanPage() {
         muted
       />
 
-      {/* Darkened overlay with transparent center */}
+      {/* Darkened overlay */}
       <div className="absolute inset-0 pointer-events-none" style={{
         background: `radial-gradient(ellipse 65vw 55vw at 50% 42%, transparent 0%, rgba(0,0,0,0.55) 100%)`
       }} />
@@ -181,12 +361,18 @@ export default function ScanPage() {
           <h1 className="text-white font-bold text-lg tracking-tight">Сканер QR</h1>
           <div className="flex items-center justify-center gap-1.5 mt-0.5">
             <motion.div
-              animate={{ opacity: ready ? [1, 0.3, 1] : 1 }}
+              animate={{ opacity: scanState === "scanning" ? [1, 0.3, 1] : 1 }}
               transition={{ repeat: Infinity, duration: 1.2 }}
-              className={`w-1.5 h-1.5 rounded-full ${ready ? "bg-green-400" : (error ? "bg-red-500" : "bg-yellow-400")}`}
+              className={`w-1.5 h-1.5 rounded-full ${
+                scanState === "scanning" ? "bg-green-400" :
+                scanState === "error" ? "bg-red-500" :
+                "bg-yellow-400"
+              }`}
             />
             <p className="text-white/60 text-xs">
-              {ready ? "Активен" : (error ? "Ошибка" : (isStarting ? "Запуск..." : "Ожидание"))}
+              {scanState === "scanning" ? "Активен" :
+               scanState === "error" ? "Ошибка" :
+               scanState === "starting" ? "Запуск..." : "Ожидание"}
             </p>
           </div>
         </div>
@@ -207,17 +393,17 @@ export default function ScanPage() {
         )}
       </div>
 
-      {/* Start Button Overlay */}
+      {/* Start / Camera Error Overlay */}
       <AnimatePresence>
-        {!ready && (
-          <motion.div 
+        {(scanState === "idle" || scanState === "starting" || (scanState === "error" && cameraError)) && (
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center"
           >
-            {error ? (
-              <motion.div 
+            {cameraError ? (
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="max-w-xs"
@@ -226,17 +412,15 @@ export default function ScanPage() {
                   <AlertCircle className="w-8 h-8 text-red-500" />
                 </div>
                 <h2 className="text-white font-bold text-xl mb-3">Ошибка камеры</h2>
-                <p className="text-white/60 text-sm mb-8 leading-relaxed">
-                  {error}
-                </p>
+                <p className="text-white/60 text-sm mb-8 leading-relaxed">{cameraError}</p>
                 <div className="flex flex-col gap-3">
-                  <button 
-                    onClick={startScanner}
+                  <button
+                    onClick={() => { setCameraError(""); startScanner(); }}
                     className="w-full bg-white text-black font-bold py-4 rounded-2xl shadow-xl active:scale-95 transition-all"
                   >
                     Попробовать снова
                   </button>
-                  <button 
+                  <button
                     onClick={() => router.push("/student")}
                     className="w-full bg-white/5 text-white/60 font-medium py-3 rounded-xl hover:text-white transition-colors"
                   >
@@ -245,13 +429,13 @@ export default function ScanPage() {
                 </div>
               </motion.div>
             ) : (
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="max-w-xs"
               >
                 <div className="w-20 h-20 rounded-[2.5rem] bg-white/10 flex items-center justify-center mb-8 mx-auto relative border border-white/10">
-                  <motion.div 
+                  <motion.div
                     animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.1, 0.2] }}
                     transition={{ repeat: Infinity, duration: 3 }}
                     className="absolute inset-0 bg-white/20 rounded-[2.5rem]"
@@ -262,12 +446,12 @@ export default function ScanPage() {
                 <p className="text-white/60 text-sm mb-10 leading-relaxed">
                   Нажмите на кнопку ниже, чтобы разрешить доступ к камере и начать сканирование
                 </p>
-                <button 
+                <button
                   onClick={startScanner}
-                  disabled={isStarting}
-                  className="w-full bg-white/10 hover:bg-white/15 text-white font-bold py-4.5 px-8 rounded-2xl border border-white/10 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
+                  disabled={scanState === "starting"}
+                  className="w-full bg-white/10 hover:bg-white/15 text-white font-bold py-4 px-8 rounded-2xl border border-white/10 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
                 >
-                  {isStarting ? "Запуск..." : "Включить камеру"}
+                  {scanState === "starting" ? "Запуск..." : "Включить камеру"}
                 </button>
               </motion.div>
             )}
@@ -278,7 +462,6 @@ export default function ScanPage() {
       {/* Scan frame */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center -mt-8">
         <div className="relative w-[72vw] max-w-[290px] aspect-square">
-          {/* Corner brackets */}
           {[
             "top-0 left-0 border-t-[3px] border-l-[3px] rounded-tl-2xl",
             "top-0 right-0 border-t-[3px] border-r-[3px] rounded-tr-2xl",
@@ -305,7 +488,7 @@ export default function ScanPage() {
         </div>
       </div>
 
-      <div className="relative z-10 px-6 pb-12 pt-4 space-y-3">
+      <div className="relative z-10 px-6 pb-12 pt-4">
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-white/60" />
