@@ -277,12 +277,12 @@ export default function ScanPage() {
             <p className="text-white/40 text-sm mb-6">Ваш визит успешно зафиксирован</p>
 
             <div className="py-4 px-6 bg-white/[0.03] border border-white/5 rounded-2xl mb-6">
-              <p className="text-[10px] text-white/20 uppercase tracking-[0.2em] font-bold mb-1">Лаборатория</p>
+              <p className="text-xs text-white/40 uppercase tracking-wider mb-1">Лаборатория</p>
               <p className="text-lg font-bold text-white/80 leading-tight">{roomName}</p>
             </div>
 
-            <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">
-              Студент: <span className="text-white/60">{userName}</span>
+            <p className="text-white/40 text-xs">
+              Студент: <span className="text-white/70">{userName}</span>
             </p>
           </motion.div>
 
