@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import AnimatedContent from "@/components/AnimatedContent";
 import { X, Zap, AlertCircle, Flashlight, QrCode, CheckCircle2, XCircle } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -245,51 +245,32 @@ export default function ScanPage() {
       <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-black">
         <div className="liquid-blob top-[-10%] right-[-10%] w-80 h-80 opacity-20" />
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="glass-card p-10 text-center max-w-sm w-full relative z-10"
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.15, type: "spring", stiffness: 260, damping: 20 }}
-            className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-8 shadow-2xl"
-          >
-            <CheckCircle2 className="w-12 h-12 text-white/80" />
-          </motion.div>
+        <AnimatedContent distance={30} duration={0.8} ease="power3.out">
+          <div className="glass-card p-10 text-center max-w-sm w-full relative z-10">
+            <div className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-8 shadow-2xl">
+              <CheckCircle2 className="w-12 h-12 text-white/80" />
+            </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            <h1 className="text-3xl font-bold mb-2 text-white/90 tracking-tight">Готово!</h1>
+            <h1 className="font-pixel text-sm text-white/90 tracking-wider mb-2">ГОТОВО!</h1>
             <p className="text-white/40 text-sm mb-6">Ваш визит успешно зафиксирован</p>
 
             <div className="py-4 px-6 bg-white/[0.03] border border-white/5 rounded-2xl mb-6">
-              <p className="text-[10px] text-white/20 uppercase tracking-[0.2em] font-bold mb-1">Лаборатория</p>
+              <p className="font-pixel text-[8px] text-white/20 uppercase tracking-widest mb-2">Лаборатория</p>
               <p className="text-lg font-bold text-white/80 leading-tight">{roomName}</p>
             </div>
 
             <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">
               Студент: <span className="text-white/60">{userName}</span>
             </p>
-          </motion.div>
 
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => router.push("/student")}
-            className="mt-10 w-full glass-button py-4 text-sm font-bold text-white/90"
-          >
-            Понятно
-          </motion.button>
-        </motion.div>
+            <button
+              onClick={() => router.push("/student")}
+              className="btn-primary mt-10 w-full py-4 text-sm font-pixel tracking-wider"
+            >
+              ПОНЯТНО
+            </button>
+          </div>
+        </AnimatedContent>
       </div>
     );
   }
@@ -299,16 +280,12 @@ export default function ScanPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-black">
         <div className="relative">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 border-2 border-white/5 border-t-white/40 rounded-full"
-          />
+          <div className="w-16 h-16 border-2 border-white/5 border-t-white/40 rounded-full animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-pulse" />
           </div>
         </div>
-        <p className="mt-6 text-white/20 font-medium text-sm tracking-widest uppercase">Регистрация входа...</p>
+        <p className="mt-6 font-pixel text-[10px] text-white/20 tracking-widest uppercase">Регистрация...</p>
       </div>
     );
   }
@@ -317,31 +294,26 @@ export default function ScanPage() {
   if (scanState === "error" && submitError) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-black">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="glass-card p-8 text-center max-w-sm w-full"
-        >
-          <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
-            <XCircle className="w-8 h-8 text-red-500" />
+        <AnimatedContent distance={20} scale={0.95} duration={0.6} ease="power3.out">
+          <div className="glass-card p-8 text-center max-w-sm w-full">
+            <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+              <XCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <h1 className="font-pixel text-xs text-white/90 tracking-wider mb-3">ОШИБКА</h1>
+            <p className="text-white/40 text-sm mb-8 leading-relaxed">{submitError}</p>
+            <div className="flex flex-col gap-3">
+              <button onClick={resetScanner} className="btn-glass w-full py-4 text-sm font-semibold">
+                Сканировать снова
+              </button>
+              <button
+                onClick={() => router.push("/student")}
+                className="w-full py-3 text-xs font-medium text-white/30 hover:text-white transition-colors"
+              >
+                В личный кабинет
+              </button>
+            </div>
           </div>
-          <h1 className="text-xl font-bold mb-2 text-white/90">Ошибка регистрации</h1>
-          <p className="text-white/40 text-sm mb-8 leading-relaxed">{submitError}</p>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={resetScanner}
-              className="w-full glass-button py-4 text-sm font-bold text-white/90"
-            >
-              Сканировать снова
-            </button>
-            <button
-              onClick={() => router.push("/student")}
-              className="w-full py-3 text-xs font-medium text-white/30 hover:text-white transition-colors"
-            >
-              В личный кабинет
-            </button>
-          </div>
-        </motion.div>
+        </AnimatedContent>
       </div>
     );
   }
@@ -372,18 +344,16 @@ export default function ScanPage() {
         </button>
 
         <div className="text-center">
-          <h1 className="text-white font-bold text-lg tracking-tight">Сканер QR</h1>
+          <h1 className="font-pixel text-xs text-white tracking-wider">СКАНЕР QR</h1>
           <div className="flex items-center justify-center gap-1.5 mt-0.5">
-            <motion.div
-              animate={{ opacity: scanState === "scanning" ? [1, 0.3, 1] : 1 }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
+            <div
               className={`w-1.5 h-1.5 rounded-full ${
                 scanState === "scanning" ? "bg-green-400" :
                 scanState === "error" ? "bg-red-500" :
                 "bg-yellow-400"
               }`}
             />
-            <p className="text-white/60 text-xs">
+            <p className="text-white/60 text-xs mt-0.5">
               {scanState === "scanning" ? "Активен" :
                scanState === "error" ? "Ошибка" :
                scanState === "starting" ? "Запуск..." : "Ожидание"}
@@ -408,20 +378,11 @@ export default function ScanPage() {
       </div>
 
       {/* Start / Camera Error Overlay */}
-      <AnimatePresence>
-        {(scanState === "idle" || scanState === "starting" || (scanState === "error" && cameraError)) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center"
-          >
+      {(scanState === "idle" || scanState === "starting" || (scanState === "error" && cameraError)) && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
             {cameraError ? (
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="max-w-xs"
-              >
+              <AnimatedContent distance={20} scale={0.95} duration={0.5} ease="power3.out">
+              <div className="max-w-xs">
                 <div className="w-16 h-16 rounded-3xl bg-red-500/20 flex items-center justify-center mb-6 mx-auto">
                   <AlertCircle className="w-8 h-8 text-red-500" />
                 </div>
@@ -430,7 +391,7 @@ export default function ScanPage() {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => { setCameraError(""); startScanner(); }}
-                    className="w-full bg-white text-black font-bold py-4 rounded-2xl shadow-xl active:scale-95 transition-all"
+                    className="btn-primary w-full py-4 text-sm font-semibold"
                   >
                     Попробовать снова
                   </button>
@@ -441,37 +402,31 @@ export default function ScanPage() {
                     Вернуться назад
                   </button>
                 </div>
-              </motion.div>
+              </div>
+              </AnimatedContent>
             ) : (
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="max-w-xs"
-              >
+              <AnimatedContent distance={20} scale={0.95} duration={0.5} ease="power3.out">
+              <div className="max-w-xs">
                 <div className="w-20 h-20 rounded-[2.5rem] bg-white/10 flex items-center justify-center mb-8 mx-auto relative border border-white/10">
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.1, 0.2] }}
-                    transition={{ repeat: Infinity, duration: 3 }}
-                    className="absolute inset-0 bg-white/20 rounded-[2.5rem]"
-                  />
+                  <div className="absolute inset-0 bg-white/10 rounded-[2.5rem] animate-pulse" />
                   <QrCode className="w-10 h-10 text-white/80 relative z-10" />
                 </div>
-                <h2 className="text-white font-bold text-2xl mb-3">Сканер готов</h2>
+                <h2 className="font-pixel text-xs text-white tracking-wider mb-3">СКАНЕР ГОТОВ</h2>
                 <p className="text-white/60 text-sm mb-10 leading-relaxed">
                   Нажмите на кнопку ниже, чтобы разрешить доступ к камере и начать сканирование
                 </p>
                 <button
                   onClick={startScanner}
                   disabled={scanState === "starting"}
-                  className="w-full bg-white/10 hover:bg-white/15 text-white font-bold py-4 px-8 rounded-2xl border border-white/10 active:scale-95 transition-all disabled:opacity-50 shadow-2xl"
+                  className="btn-primary w-full py-4 text-sm font-semibold disabled:opacity-50"
                 >
                   {scanState === "starting" ? "Запуск..." : "Включить камеру"}
                 </button>
-              </motion.div>
+              </div>
+              </AnimatedContent>
             )}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Scan frame */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center -mt-8">
@@ -482,21 +437,19 @@ export default function ScanPage() {
             "bottom-0 left-0 border-b-[3px] border-l-[3px] rounded-bl-2xl",
             "bottom-0 right-0 border-b-[3px] border-r-[3px] rounded-br-2xl",
           ].map((cls, i) => (
-            <motion.div
+            <div
               key={i}
-              animate={{ opacity: [1, 0.4, 1] }}
-              transition={{ repeat: Infinity, duration: 2.5, delay: i * 0.2 }}
-              className={`absolute w-9 h-9 border-white/60 ${cls}`}
+              className={`absolute w-9 h-9 border-white/60 animate-pulse ${cls}`}
+              style={{ animationDelay: `${i * 0.2}s` }}
             />
           ))}
 
-          <motion.div
-            animate={{ y: ["2%", "96%", "2%"] }}
-            transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+          <div
             className="absolute left-3 right-3 h-[2px] rounded-full"
             style={{
               background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), white, rgba(255,255,255,0.4), transparent)",
               boxShadow: "0 0 15px 2px rgba(255,255,255,0.1)",
+              animation: "scan-line 2.5s ease-in-out infinite",
             }}
           />
         </div>

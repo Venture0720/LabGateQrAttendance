@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import AnimatedContent from "@/components/AnimatedContent";
 import { supabase } from "@/lib/supabase";
 import type { Room, Visitor, Profile } from "@/types";
 import QRCode from "qrcode";
@@ -148,7 +148,14 @@ export default function ProfessorPage() {
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-    await supabase.from("rooms").update({ is_active: false }).eq("id", roomId);
+    const { error: delError } = await supabase
+      .from("rooms")
+      .update({ is_active: false })
+      .eq("id", roomId);
+    if (delError) {
+      setError("Ошибка удаления: " + delError.message);
+      return;
+    }
     if (selectedRoom === roomId) {
       setSelectedRoom("");
       setQrDataUrl("");
@@ -190,25 +197,19 @@ export default function ProfessorPage() {
   return (
     <div className="h-full flex flex-col relative overflow-hidden bg-transparent">
       <div className="flex-1 flex flex-col max-w-4xl w-full mx-auto relative z-10 overflow-hidden pb-[88px]">
-        {/* Header (Fixed at top) */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02] backdrop-blur-xl z-20 shrink-0"
-        >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02] backdrop-blur-xl z-20 shrink-0">
           <div>
-            <h1 className="text-xl font-bold text-white/90 tracking-tight">LabGate</h1>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Кабинет профессора</p>
+            <h1 className="pixel-title text-base leading-tight">LabGate</h1>
+            <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mt-1">Кабинет профессора</p>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={handleLogout}
-            className="flex items-center gap-2 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm text-white/40 hover:text-white"
+            className="btn-glass p-2.5"
           >
             <LogOut className="w-5 h-5" />
-          </motion.button>
-        </motion.div>
+          </button>
+        </div>
 
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -216,44 +217,37 @@ export default function ProfessorPage() {
           {viewTab === "rooms" && (
             <div className="space-y-4">
               {/* Create Room */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-card p-5"
-              >
-                <h2 className="text-sm font-bold mb-3 flex items-center gap-2 text-white/80">
-                  <Plus className="w-4 h-4" />
-                  Новая комната
-                </h2>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newRoomName}
-                    onChange={(e) => setNewRoomName(e.target.value)}
-                    className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-base"
-                    placeholder="Название (напр. Лаб. 1)"
-                    onKeyDown={(e) => e.key === "Enter" && handleCreateRoom()}
-                  />
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleCreateRoom}
-                    disabled={loading}
-                    className="bg-white/10 hover:bg-white/15 text-white font-semibold px-4 rounded-xl border border-white/10 transition-all disabled:opacity-50"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </motion.button>
+              <AnimatedContent distance={30} duration={0.7} ease="power3.out">
+                <div className="glass-card p-5">
+                  <h2 className="font-pixel text-[10px] mb-4 flex items-center gap-2 text-white/60 tracking-widest">
+                    <Plus className="w-3 h-3" />
+                    НОВАЯ КОМНАТА
+                  </h2>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newRoomName}
+                      onChange={(e) => setNewRoomName(e.target.value)}
+                      className="input-glass flex-1 px-4 py-3 text-sm"
+                      placeholder="Название (напр. Лаб. 1)"
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateRoom()}
+                    />
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={loading}
+                      className="btn-primary px-4 disabled:opacity-50"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                  {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
                 </div>
-                {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
-              </motion.div>
+              </AnimatedContent>
 
               {/* Rooms List */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="glass p-4"
-              >
-                <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3 text-white/40">Доступные комнаты</h3>
+              <AnimatedContent distance={30} duration={0.7} ease="power3.out" delay={0.1}>
+                <div className="glass p-4">
+                  <h3 className="font-pixel text-[10px] uppercase tracking-widest mb-3 text-white/40">Доступные комнаты</h3>
                 {rooms.length === 0 ? (
                   <p className="text-xs text-white/30 text-center py-4 font-medium">Нет комнат. Создайте первую!</p>
                 ) : (
@@ -282,7 +276,7 @@ export default function ProfessorPage() {
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id); }}
-                            className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-400 shrink-0"
+                            className="btn-danger p-2 shrink-0"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -291,68 +285,59 @@ export default function ProfessorPage() {
                     })}
                   </div>
                 )}
-              </motion.div>
+                </div>
+              </AnimatedContent>
 
               {/* QR Code & Visitors List for selected room */}
               {selectedRoom && selectedRoomData && qrDataUrl && (
                 <div className="space-y-4">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="glass-card p-6 text-center flex flex-col items-center"
-                  >
-                    <h2 className="text-lg font-bold text-white/90 tracking-tight mb-1">QR-код</h2>
-                    <p className="text-xs text-white/40 mb-4 font-medium">{selectedRoomData.name}</p>
+                  <AnimatedContent distance={20} scale={0.97} duration={0.6} ease="power3.out">
+                    <div className="glass-card p-6 text-center flex flex-col items-center">
+                      <h2 className="font-pixel text-xs text-white/80 tracking-wider mb-1">QR-КОД</h2>
+                      <p className="text-xs text-white/40 mb-4 font-medium">{selectedRoomData.name}</p>
 
                     <div className="inline-block p-3 bg-white rounded-2xl mb-4">
                       <img src={qrDataUrl} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56 object-contain" />
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 w-full">
-                      <button
-                        onClick={handleCopyLink}
-                        className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm font-medium"
-                      >
-                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                        {copied ? "Скопировано!" : "Копировать ссылку"}
-                      </button>
+                      <div className="flex items-center justify-center gap-2 w-full">
+                        <button
+                          onClick={handleCopyLink}
+                          className="btn-glass flex items-center justify-center gap-2 w-full py-3 text-sm"
+                        >
+                          {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                          {copied ? "Скопировано!" : "Копировать ссылку"}
+                        </button>
+                      </div>
                     </div>
-                  </motion.div>
+                  </AnimatedContent>
 
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="glass p-4"
-                  >
-                    <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3 text-white/40 flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      Посетители ({selectedRoomData?.name})
-                    </h3>
-                    {visitors.length === 0 ? (
-                      <p className="text-xs text-white/30 text-center py-4 font-medium">Пока нет посетителей</p>
-                    ) : (
-                    <div className="space-y-2">
-                      <AnimatePresence initial={false}>
-                        {visitors.map((visitor) => (
-                          <motion.div
-                            key={visitor.id}
-                            initial={{ opacity: 0, x: -20, height: 0 }}
-                            animate={{ opacity: 1, x: 0, height: "auto" }}
-                            exit={{ opacity: 0, x: 20, height: 0 }}
-                            className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5 overflow-hidden"
-                          >
-                            <p className="text-sm font-medium truncate pr-2 text-white/90">{visitor.name}</p>
-                            <span className="text-xs text-white/40 flex items-center gap-1 shrink-0">
-                              <Clock className="w-3 h-3" />
-                              {new Date(visitor.scanned_at).toLocaleTimeString("ru-RU", { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
+                  <AnimatedContent distance={20} duration={0.6} ease="power3.out" delay={0.15}>
+                    <div className="glass p-4">
+                      <h3 className="font-pixel text-[10px] uppercase tracking-widest mb-3 text-white/40 flex items-center gap-2">
+                        <Users className="w-3 h-3" />
+                        Посетители ({selectedRoomData?.name})
+                      </h3>
+                      {visitors.length === 0 ? (
+                        <p className="text-xs text-white/30 text-center py-4 font-medium">Пока нет посетителей</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {visitors.map((visitor) => (
+                            <div
+                              key={visitor.id}
+                              className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5"
+                            >
+                              <p className="text-sm font-medium truncate pr-2 text-white/90">{visitor.name}</p>
+                              <span className="text-xs text-white/40 flex items-center gap-1 shrink-0">
+                                <Clock className="w-3 h-3" />
+                                {new Date(visitor.scanned_at).toLocaleTimeString("ru-RU", { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    )}
-                  </motion.div>
+                  </AnimatedContent>
                 </div>
               )}
             </div>
@@ -360,15 +345,12 @@ export default function ProfessorPage() {
 
           {/* Global Monthly History Tab */}
           {viewTab === "history" && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-4"
-            >
+            <AnimatedContent distance={30} duration={0.7} ease="power3.out">
+              <div className="space-y-4">
               <div className="glass-card p-5">
-                <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
-                  <CalendarDays className="w-5 h-5 text-white/60" />
-                  История за месяц
+                <h2 className="font-pixel text-xs text-white/80 tracking-wider mb-1 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4" />
+                  ИСТОРИЯ ЗА МЕСЯЦ
                 </h2>
                 <p className="text-xs text-white/40">
                   Посещения всех лабораторий за последние 30 дней.
@@ -402,7 +384,8 @@ export default function ProfessorPage() {
                   </div>
                 )}
               </div>
-            </motion.div>
+              </div>
+            </AnimatedContent>
           )}
 
         </div>
@@ -414,21 +397,21 @@ export default function ProfessorPage() {
           <button
             onClick={() => setViewTab("rooms")}
             className={`flex flex-col items-center gap-1 w-full py-2 rounded-xl transition-all ${
-              viewTab === "rooms" ? "text-white" : "text-white/40 hover:text-white"
+              viewTab === "rooms" ? "text-white bg-white/10" : "text-white/40 hover:text-white"
             }`}
           >
             <DoorOpen className="w-6 h-6" />
-            <span className="text-[10px] font-medium">Комнаты</span>
+            <span className="font-pixel text-[8px]">КОМНАТЫ</span>
           </button>
 
           <button
             onClick={() => setViewTab("history")}
             className={`flex flex-col items-center gap-1 w-full py-2 rounded-xl transition-all ${
-              viewTab === "history" ? "text-white" : "text-white/40 hover:text-white"
+              viewTab === "history" ? "text-white bg-white/10" : "text-white/40 hover:text-white"
             }`}
           >
             <CalendarDays className="w-6 h-6" />
-            <span className="text-[10px] font-medium">История</span>
+            <span className="font-pixel text-[8px]">ИСТОРИЯ</span>
           </button>
 
           <button
@@ -436,7 +419,7 @@ export default function ProfessorPage() {
             className="flex flex-col items-center gap-1 w-full py-2 rounded-xl text-white/40 hover:text-white transition-all"
           >
             <BarChart3 className="w-6 h-6" />
-            <span className="text-[10px] font-medium">Отчеты</span>
+            <span className="font-pixel text-[8px]">ОТЧЕТЫ</span>
           </button>
         </div>
       </div>
