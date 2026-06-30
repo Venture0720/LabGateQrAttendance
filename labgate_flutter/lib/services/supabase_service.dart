@@ -1,4 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+﻿import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
 import '../models/room.dart';
 import '../models/visitor.dart';
@@ -6,7 +6,7 @@ import '../models/visitor.dart';
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // тФАтФА Auth тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
 
   static Future<AuthResponse> signIn({
     required String username,
@@ -36,7 +36,7 @@ class SupabaseService {
   static Stream<AuthState> get authStateChanges =>
       client.auth.onAuthStateChange;
 
-  // ── Profile ───────────────────────────────────────────────────────────────
+  // тФАтФА Profile тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
 
   static Future<Profile?> getProfile(String userId) async {
     final data = await client
@@ -48,7 +48,7 @@ class SupabaseService {
     return Profile.fromJson(data);
   }
 
-  // ── Rooms ─────────────────────────────────────────────────────────────────
+  // тФАтФА Rooms тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
 
   static Future<List<Room>> getRooms() async {
     final data = await client
@@ -75,7 +75,7 @@ class SupabaseService {
         .eq('id', roomId);
   }
 
-  // ── Visitors ──────────────────────────────────────────────────────────────
+  // тФАтФА Visitors тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
 
   static Future<List<Visitor>> getVisitorsByRoom(String roomId) async {
     final data = await client
@@ -126,7 +126,7 @@ class SupabaseService {
     });
   }
 
-  // ── Realtime ──────────────────────────────────────────────────────────────
+  // тФАтФА Realtime тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
 
   static RealtimeChannel subscribeToRooms(void Function() onUpdate) {
     return client
@@ -155,3 +155,4 @@ class SupabaseService {
         .subscribe();
   }
 }
+

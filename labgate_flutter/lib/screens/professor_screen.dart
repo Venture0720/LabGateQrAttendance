@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/room.dart';
 import '../models/visitor.dart';
 import '../providers/auth_provider.dart';
@@ -19,7 +20,7 @@ class ProfessorScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfessorScreenState extends ConsumerState<ProfessorScreen> {
-  int _tab = 0; // 0 = rooms, 1 = history
+  int _tab = 0;
   String? _selectedRoomId;
   final _newRoomCtrl = TextEditingController();
 
@@ -89,8 +90,7 @@ class _ProfessorScreenState extends ConsumerState<ProfessorScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
+              borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
             ),
           ),
           onSubmitted: (_) => _createRoom(),
@@ -155,7 +155,7 @@ class _ProfessorScreenState extends ConsumerState<ProfessorScreen> {
                 );
               },
               icon: const Icon(Icons.copy, size: 16, color: Color(0xFF6C63FF)),
-              label: const Text('Копировать ID',
+              label: const Text('Скопировать ID',
                   style: TextStyle(color: Color(0xFF6C63FF))),
             ),
           ],
@@ -186,8 +186,7 @@ class _ProfessorScreenState extends ConsumerState<ProfessorScreen> {
         ),
         child: SafeArea(
           child: profileAsync.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(
                 child: Text('Ошибка: $e',
                     style: const TextStyle(color: Colors.white))),
@@ -247,19 +246,16 @@ class _ProfessorBody extends ConsumerWidget {
         children: [
           // Header
           GlassCard(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('LabGate',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
+                    Text('LabGate',
+                        style: GoogleFonts.pressStart2p(
+                            fontSize: 14, color: Colors.white)),
                     Text('Кабинет преподавателя',
                         style: TextStyle(
                             fontSize: 11,
@@ -409,24 +405,22 @@ class _RoomsTab extends ConsumerWidget {
               style: const TextStyle(color: Colors.white))),
       data: (rooms) => Column(
         children: [
-          // Create room button
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
+            child: GlassButton(
               onPressed: onCreateRoom,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Создать комнату'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add, size: 18, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Создать комнату',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-
           if (rooms.isEmpty)
             Expanded(
               child: Center(
@@ -465,8 +459,7 @@ class _RoomsTab extends ConsumerWidget {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF6C63FF)
-                                    .withOpacity(0.15),
+                                color: const Color(0xFF6C63FF).withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(Icons.door_front_door,
@@ -496,8 +489,8 @@ class _RoomsTab extends ConsumerWidget {
                               tooltip: 'Посетители',
                             ),
                             IconButton(
-                              onPressed: () => _confirmDeactivate(
-                                  context, room),
+                              onPressed: () =>
+                                  _confirmDeactivate(context, room),
                               icon: const Icon(Icons.delete_outline,
                                   color: Colors.redAccent, size: 22),
                               tooltip: 'Удалить',
@@ -526,18 +519,16 @@ class _RoomsTab extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Удалить комнату?',
             style: TextStyle(color: Colors.white)),
-        content: Text('«${room.name}» будет деактивирована.',
+        content: Text('"${room.name}" будет деактивирована.',
             style: TextStyle(color: Colors.white.withOpacity(0.6))),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text('Отмена',
-                style:
-                    TextStyle(color: Colors.white.withOpacity(0.4))),
+                style: TextStyle(color: Colors.white.withOpacity(0.4))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -574,14 +565,14 @@ class _VisitorsList extends ConsumerWidget {
           style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
       data: (visitors) {
         if (visitors.isEmpty) {
-          return Text('Нет посещений',
+          return Text('Нет посетителей',
               style: TextStyle(
                   color: Colors.white.withOpacity(0.3), fontSize: 13));
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Посещения (${visitors.length})',
+            Text('Посетители (${visitors.length})',
                 style: TextStyle(
                     color: Colors.white.withOpacity(0.4),
                     fontSize: 12,
@@ -599,8 +590,7 @@ class _VisitorsList extends ConsumerWidget {
                               style: const TextStyle(
                                   color: Colors.white70, fontSize: 13))),
                       Text(
-                        DateFormat('dd.MM HH:mm').format(
-                            v.scannedAt.toLocal()),
+                        DateFormat('dd.MM HH:mm').format(v.scannedAt.toLocal()),
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.3),
                             fontSize: 11),
@@ -611,8 +601,7 @@ class _VisitorsList extends ConsumerWidget {
             if (visitors.length > 5)
               Text('+ ещё ${visitors.length - 5}...',
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 12)),
+                      color: Colors.white.withOpacity(0.3), fontSize: 12)),
           ],
         );
       },
@@ -641,10 +630,9 @@ class _HistoryTab extends ConsumerWidget {
                 Icon(Icons.history,
                     size: 48, color: Colors.white.withOpacity(0.2)),
                 const SizedBox(height: 12),
-                Text('Нет посещений за последние 30 дней',
+                Text('Нет посетителей за последние 30 дней',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
-                        fontSize: 15)),
+                        color: Colors.white.withOpacity(0.3), fontSize: 15)),
               ],
             ),
           );
@@ -655,8 +643,7 @@ class _HistoryTab extends ConsumerWidget {
           itemBuilder: (ctx, i) {
             final v = visitors[i];
             return GlassCard(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   Container(
@@ -688,12 +675,10 @@ class _HistoryTab extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    DateFormat('dd.MM.yy\nHH:mm')
-                        .format(v.scannedAt.toLocal()),
+                    DateFormat('dd.MM.yy\nHH:mm').format(v.scannedAt.toLocal()),
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.3),
-                        fontSize: 11),
+                        color: Colors.white.withOpacity(0.3), fontSize: 11),
                   ),
                 ],
               ),

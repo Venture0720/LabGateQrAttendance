@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -58,7 +58,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       if (roomId == null) {
         setState(() {
           _state = _ScanState.error;
-          _errorMsg = 'Неверный QR-код. Используйте QR от LabGate.';
+          _errorMsg = '╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ QR-╨║╨╛╨┤. ╨Ш╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╣╤В╨╡ QR ╨╛╤В LabGate.';
         });
         return;
       }
@@ -82,7 +82,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       if (room == null) {
         setState(() {
           _state = _ScanState.error;
-          _errorMsg = 'Комната не найдена или неактивна.';
+          _errorMsg = '╨Ъ╨╛╨╝╨╜╨░╤В╨░ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╨░ ╨╕╨╗╨╕ ╨╜╨╡╨░╨║╤В╨╕╨▓╨╜╨░.';
         });
         return;
       }
@@ -105,7 +105,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     } catch (e) {
       setState(() {
         _state = _ScanState.error;
-        _errorMsg = 'Ошибка: ${e.toString()}';
+        _errorMsg = '╨Ю╤И╨╕╨▒╨║╨░: ${e.toString()}';
       });
     }
   }
@@ -157,7 +157,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                       ),
                       const SizedBox(width: 12),
                       const Text(
-                        'Сканер QR-кода',
+                        '╨б╨║╨░╨╜╨╡╤А QR-╨║╨╛╨┤╨░',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -201,7 +201,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   ),
                   const SizedBox(height: 32),
                   Text(
-                    'Наведите камеру на QR-код\nу входа в лабораторию',
+                    '╨Э╨░╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨░╨╝╨╡╤А╤Г ╨╜╨░ QR-╨║╨╛╨┤\n╤Г ╨▓╤Е╨╛╨┤╨░ ╨▓ ╨╗╨░╨▒╨╛╤А╨░╤В╨╛╤А╨╕╤О',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: Colors.white.withOpacity(0.6), fontSize: 15),
@@ -209,7 +209,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 ] else if (_state == _ScanState.submitting) ...[
                   const CircularProgressIndicator(color: Color(0xFF6C63FF)),
                   const SizedBox(height: 20),
-                  const Text('Записываем посещение...',
+                  const Text('╨Ч╨░╨┐╨╕╤Б╤Л╨▓╨░╨╡╨╝ ╨┐╨╛╤Б╨╡╤Й╨╡╨╜╨╕╨╡...',
                       style: TextStyle(color: Colors.white70, fontSize: 16)),
                 ] else if (_state == _ScanState.success) ...[
                   Container(
@@ -225,13 +225,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                         color: Colors.greenAccent, size: 44),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Доступ разрешён!',
+                  const Text('╨Ф╨╛╤Б╤В╤Г╨┐ ╤А╨░╨╖╤А╨╡╤И╤С╨╜!',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  Text('Вход в «$_roomName» записан',
+                  Text('╨Т╤Е╨╛╨┤ ╨▓ ┬л$_roomName┬╗ ╨╖╨░╨┐╨╕╤Б╨░╨╜',
                       style: TextStyle(
                           color: Colors.white.withOpacity(0.5), fontSize: 15)),
                 ] else if (_state == _ScanState.error) ...[
@@ -248,7 +248,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                         color: Colors.redAccent, size: 44),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Ошибка',
+                  const Text('╨Ю╤И╨╕╨▒╨║╨░',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -266,7 +266,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   ElevatedButton.icon(
                     onPressed: _retry,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Попробовать снова'),
+                    label: const Text('╨Я╨╛╨┐╤А╨╛╨▒╨╛╨▓╨░╤В╤М ╤Б╨╜╨╛╨▓╨░'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6C63FF),
                       foregroundColor: Colors.white,
@@ -391,3 +391,4 @@ class _CornerPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CornerPainter old) => false;
 }
+
