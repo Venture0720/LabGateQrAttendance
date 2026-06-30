@@ -1,8 +1,8 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import AnimatedContent from "@/components/AnimatedContent";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import type { Room, Visitor, Profile } from "@/types";
 import QRCode from "qrcode";
@@ -30,6 +30,8 @@ export default function ProfessorPage() {
   const [viewTab, setViewTab] = useState<"rooms" | "history">("rooms");
 
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const qrRotateRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [qrTimeLeft, setQrTimeLeft] = useState(120);
 
   // Check auth
   useEffect(() => {
@@ -148,34 +150,86 @@ export default function ProfessorPage() {
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-    const { error: delError } = await supabase
-      .from("rooms")
-      .update({ is_active: false })
-      .eq("id", roomId);
-    if (delError) {
-      setError("Ошибка удаления: " + delError.message);
-      return;
-    }
+    await supabase.from("rooms").update({ is_active: false }).eq("id", roomId);
     if (selectedRoom === roomId) {
       setSelectedRoom("");
       setQrDataUrl("");
+      if (qrRotateRef.current) {
+        clearInterval(qrRotateRef.current);
+        qrRotateRef.current = null;
+      }
     }
     fetchRooms();
   };
 
-  const handleGenerateQR = async (roomId: string) => {
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://labgate.vercel.app";
-    const roomUrl = `${baseUrl}/room/${roomId}`;
-
-    try {
-      const dataUrl = await generateQR(roomUrl);
-      setQrDataUrl(dataUrl);
-      setSelectedRoom(roomId);
-      setViewTab("rooms"); // switch to rooms view if not there
-    } catch (err) {
-      console.error("QR generation error:", err);
-      setError("Ошибка генерации QR");
+  const rotateQrToken = async (roomId: string) => {
+    const newToken = crypto.randomUUID();
+    const { error } = await supabase
+      .from("rooms")
+      .update({ qr_token: newToken, qr_token_updated_at: new Date().toISOString() })
+      .eq("id", roomId);
+    if (error) {
+      console.error("QR token rotate error:", error);
+      return null;
     }
+    return newToken;
+  };
+
+  const handleGenerateQR = async (roomId: string) => {
+    // Clear previous timer
+    if (qrRotateRef.current) clearInterval(qrRotateRef.current);
+
+    const generateWithToken = async (token: string) => {
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://labgate.vercel.app";
+      const roomUrl = `${baseUrl}/room/${roomId}?token=${token}`;
+      try {
+        const dataUrl = await generateQR(roomUrl);
+        setQrDataUrl(dataUrl);
+      } catch (err) {
+        console.error("QR generation error:", err);
+        setError("Ошибка генерации QR");
+      }
+    };
+
+    // Get current token or rotate immediately
+    const { data: room } = await supabase
+      .from("rooms")
+      .select("qr_token")
+      .eq("id", roomId)
+      .single();
+
+    const initialToken = room?.qr_token || (await rotateQrToken(roomId));
+    if (!initialToken) return;
+
+    setSelectedRoom(roomId);
+    setViewTab("rooms");
+    setQrTimeLeft(120);
+    await generateWithToken(initialToken);
+
+    // Countdown timer
+    const countdownInterval = setInterval(() => {
+      setQrTimeLeft((prev) => {
+        if (prev <= 1) return 120;
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Rotate every 2 minutes
+    const rotateInterval = setInterval(async () => {
+      const newToken = await rotateQrToken(roomId);
+      if (newToken) {
+        await generateWithToken(newToken);
+        setQrTimeLeft(120);
+      }
+    }, 120000);
+
+    qrRotateRef.current = rotateInterval;
+    // Store countdown interval in a separate ref-like approach via closure cleanup
+    // We'll clean both up on unmount
+    return () => {
+      clearInterval(countdownInterval);
+      clearInterval(rotateInterval);
+    };
   };
 
   const handleCopyLink = async () => {
@@ -197,19 +251,25 @@ export default function ProfessorPage() {
   return (
     <div className="h-full flex flex-col relative overflow-hidden bg-transparent">
       <div className="flex-1 flex flex-col max-w-4xl w-full mx-auto relative z-10 overflow-hidden pb-[88px]">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02] backdrop-blur-xl z-20 shrink-0">
+        {/* Header (Fixed at top) */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between p-4 border-b border-white/5 bg-white/[0.02] backdrop-blur-xl z-20 shrink-0"
+        >
           <div>
-            <h1 className="pixel-title text-base leading-tight">LabGate</h1>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mt-1">Кабинет профессора</p>
+            <h1 className="text-xl font-bold text-white/90 tracking-tight">LabGate</h1>
+            <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Кабинет профессора</p>
           </div>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleLogout}
-            className="btn-glass p-2.5"
+            className="flex items-center gap-2 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm text-white/40 hover:text-white"
           >
             <LogOut className="w-5 h-5" />
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
 
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -217,37 +277,44 @@ export default function ProfessorPage() {
           {viewTab === "rooms" && (
             <div className="space-y-4">
               {/* Create Room */}
-              <AnimatedContent distance={30} duration={0.7} ease="power3.out">
-                <div className="glass-card p-5">
-                  <h2 className="font-pixel text-[10px] mb-4 flex items-center gap-2 text-white/60 tracking-widest">
-                    <Plus className="w-3 h-3" />
-                    НОВАЯ КОМНАТА
-                  </h2>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newRoomName}
-                      onChange={(e) => setNewRoomName(e.target.value)}
-                      className="input-glass flex-1 px-4 py-3 text-sm"
-                      placeholder="Название (напр. Лаб. 1)"
-                      onKeyDown={(e) => e.key === "Enter" && handleCreateRoom()}
-                    />
-                    <button
-                      onClick={handleCreateRoom}
-                      disabled={loading}
-                      className="btn-primary px-4 disabled:opacity-50"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                  </div>
-                  {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass-card p-5"
+              >
+                <h2 className="text-sm font-bold mb-3 flex items-center gap-2 text-white/80">
+                  <Plus className="w-4 h-4" />
+                  Новая комната
+                </h2>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newRoomName}
+                    onChange={(e) => setNewRoomName(e.target.value)}
+                    className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-base"
+                    placeholder="Название (напр. Лаб. 1)"
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateRoom()}
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleCreateRoom}
+                    disabled={loading}
+                    className="bg-white/10 hover:bg-white/15 text-white font-semibold px-4 rounded-xl border border-white/10 transition-all disabled:opacity-50"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </motion.button>
                 </div>
-              </AnimatedContent>
+                {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+              </motion.div>
 
               {/* Rooms List */}
-              <AnimatedContent distance={30} duration={0.7} ease="power3.out" delay={0.1}>
-                <div className="glass p-4">
-                  <h3 className="font-pixel text-[10px] uppercase tracking-widest mb-3 text-white/40">Доступные комнаты</h3>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="glass p-4"
+              >
+                <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3 text-white/40">Доступные комнаты</h3>
                 {rooms.length === 0 ? (
                   <p className="text-xs text-white/30 text-center py-4 font-medium">Нет комнат. Создайте первую!</p>
                 ) : (
@@ -276,7 +343,7 @@ export default function ProfessorPage() {
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id); }}
-                            className="btn-danger p-2 shrink-0"
+                            className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-400 shrink-0"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -285,59 +352,67 @@ export default function ProfessorPage() {
                     })}
                   </div>
                 )}
-                </div>
-              </AnimatedContent>
+              </motion.div>
 
               {/* QR Code & Visitors List for selected room */}
               {selectedRoom && selectedRoomData && qrDataUrl && (
                 <div className="space-y-4">
-                  <AnimatedContent distance={20} scale={0.97} duration={0.6} ease="power3.out">
-                    <div className="glass-card p-6 text-center flex flex-col items-center">
-                      <h2 className="font-pixel text-xs text-white/80 tracking-wider mb-1">QR-КОД</h2>
-                      <p className="text-xs text-white/40 mb-4 font-medium">{selectedRoomData.name}</p>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass-card p-6 text-center flex flex-col items-center"
+                  >
+                    <h2 className="text-lg font-bold text-white/90 tracking-tight mb-1">QR-код</h2>
+                    <p className="text-xs text-white/40 mb-4 font-medium">{selectedRoomData.name}</p>
 
                     <div className="inline-block p-3 bg-white rounded-2xl mb-4">
                       <img src={qrDataUrl} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56 object-contain" />
                     </div>
 
-                      <div className="flex items-center justify-center gap-2 w-full">
-                        <button
-                          onClick={handleCopyLink}
-                          className="btn-glass flex items-center justify-center gap-2 w-full py-3 text-sm"
-                        >
-                          {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                          {copied ? "Скопировано!" : "Копировать ссылку"}
-                        </button>
-                      </div>
+                    {/* QR rotation countdown */}
+                    <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                      <Clock className="w-4 h-4 text-white/40 shrink-0" />
+                      <span className="text-xs text-white/50">Обновление через</span>
+                      <span className={`text-sm font-bold tabular-nums ${qrTimeLeft <= 20 ? "text-red-400" : "text-white/80"}`}>
+                        {Math.floor(qrTimeLeft / 60)}:{String(qrTimeLeft % 60).padStart(2, "0")}
+                      </span>
                     </div>
-                  </AnimatedContent>
+                  </motion.div>
 
-                  <AnimatedContent distance={20} duration={0.6} ease="power3.out" delay={0.15}>
-                    <div className="glass p-4">
-                      <h3 className="font-pixel text-[10px] uppercase tracking-widest mb-3 text-white/40 flex items-center gap-2">
-                        <Users className="w-3 h-3" />
-                        Посетители ({selectedRoomData?.name})
-                      </h3>
-                      {visitors.length === 0 ? (
-                        <p className="text-xs text-white/30 text-center py-4 font-medium">Пока нет посетителей</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {visitors.map((visitor) => (
-                            <div
-                              key={visitor.id}
-                              className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5"
-                            >
-                              <p className="text-sm font-medium truncate pr-2 text-white/90">{visitor.name}</p>
-                              <span className="text-xs text-white/40 flex items-center gap-1 shrink-0">
-                                <Clock className="w-3 h-3" />
-                                {new Date(visitor.scanned_at).toLocaleTimeString("ru-RU", { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="glass p-4"
+                  >
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3 text-white/40 flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Посетители ({selectedRoomData?.name})
+                    </h3>
+                    {visitors.length === 0 ? (
+                      <p className="text-xs text-white/30 text-center py-4 font-medium">Пока нет посетителей</p>
+                    ) : (
+                    <div className="space-y-2">
+                      <AnimatePresence initial={false}>
+                        {visitors.map((visitor) => (
+                          <motion.div
+                            key={visitor.id}
+                            initial={{ opacity: 0, x: -20, height: 0 }}
+                            animate={{ opacity: 1, x: 0, height: "auto" }}
+                            exit={{ opacity: 0, x: 20, height: 0 }}
+                            className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5 overflow-hidden"
+                          >
+                            <p className="text-sm font-medium truncate pr-2 text-white/90">{visitor.name}</p>
+                            <span className="text-xs text-white/40 flex items-center gap-1 shrink-0">
+                              <Clock className="w-3 h-3" />
+                              {new Date(visitor.scanned_at).toLocaleTimeString("ru-RU", { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
-                  </AnimatedContent>
+                    )}
+                  </motion.div>
                 </div>
               )}
             </div>
@@ -345,12 +420,15 @@ export default function ProfessorPage() {
 
           {/* Global Monthly History Tab */}
           {viewTab === "history" && (
-            <AnimatedContent distance={30} duration={0.7} ease="power3.out">
-              <div className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
               <div className="glass-card p-5">
-                <h2 className="font-pixel text-xs text-white/80 tracking-wider mb-1 flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4" />
-                  ИСТОРИЯ ЗА МЕСЯЦ
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-white/60" />
+                  История за месяц
                 </h2>
                 <p className="text-xs text-white/40">
                   Посещения всех лабораторий за последние 30 дней.
@@ -384,8 +462,7 @@ export default function ProfessorPage() {
                   </div>
                 )}
               </div>
-              </div>
-            </AnimatedContent>
+            </motion.div>
           )}
 
         </div>
@@ -397,21 +474,21 @@ export default function ProfessorPage() {
           <button
             onClick={() => setViewTab("rooms")}
             className={`flex flex-col items-center gap-1 w-full py-2 rounded-xl transition-all ${
-              viewTab === "rooms" ? "text-white bg-white/10" : "text-white/40 hover:text-white"
+              viewTab === "rooms" ? "text-white" : "text-white/40 hover:text-white"
             }`}
           >
             <DoorOpen className="w-6 h-6" />
-            <span className="font-pixel text-[8px]">КОМНАТЫ</span>
+            <span className="text-[10px] font-medium">Комнаты</span>
           </button>
 
           <button
             onClick={() => setViewTab("history")}
             className={`flex flex-col items-center gap-1 w-full py-2 rounded-xl transition-all ${
-              viewTab === "history" ? "text-white bg-white/10" : "text-white/40 hover:text-white"
+              viewTab === "history" ? "text-white" : "text-white/40 hover:text-white"
             }`}
           >
             <CalendarDays className="w-6 h-6" />
-            <span className="font-pixel text-[8px]">ИСТОРИЯ</span>
+            <span className="text-[10px] font-medium">История</span>
           </button>
 
           <button
@@ -419,7 +496,7 @@ export default function ProfessorPage() {
             className="flex flex-col items-center gap-1 w-full py-2 rounded-xl text-white/40 hover:text-white transition-all"
           >
             <BarChart3 className="w-6 h-6" />
-            <span className="font-pixel text-[8px]">ОТЧЕТЫ</span>
+            <span className="text-[10px] font-medium">Отчеты</span>
           </button>
         </div>
       </div>
