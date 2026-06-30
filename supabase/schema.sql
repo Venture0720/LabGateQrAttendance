@@ -72,13 +72,18 @@ drop policy if exists "Everyone can view active rooms" on public.rooms;
 create policy "Everyone can view active rooms" on public.rooms
   for select using (is_active = true);
 
+drop policy if exists "Professors can view own rooms" on public.rooms;
+create policy "Professors can view own rooms" on public.rooms
+  for select using (is_professor() and created_by = auth.uid());
+
 drop policy if exists "Professors can insert rooms" on public.rooms;
 create policy "Professors can insert rooms" on public.rooms
   for insert with check (is_professor());
 
 drop policy if exists "Professors can update own rooms" on public.rooms;
 create policy "Professors can update own rooms" on public.rooms
-  for update using (is_professor()) with check (is_professor());
+  for update using (is_professor() and created_by = auth.uid())
+  with check (is_professor());
 
 -- Visitors: Students can insert their own visit. Professors can see visits.
 drop policy if exists "Students can insert visit" on public.visitors;
