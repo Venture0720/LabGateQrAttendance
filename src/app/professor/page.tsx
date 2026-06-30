@@ -1,12 +1,12 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import type { Room, Visitor, Profile } from "@/types";
 import QRCode from "qrcode";
-import { LogOut, Plus, Users, Clock, Copy, Check, Trash2, CalendarDays, DoorOpen, BarChart3 } from "lucide-react";
+import { LogOut, Plus, Users, Clock, Copy, Check, Trash2, CalendarDays, DoorOpen, BarChart3, GraduationCap, RefreshCw } from "lucide-react";
 
 const generateQR = async (text: string): Promise<string> => {
   return await QRCode.toDataURL(text, {
@@ -27,9 +27,14 @@ export default function ProfessorPage() {
   const [loading, setLoading] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [copied, setCopied] = useState(false);
-  const [viewTab, setViewTab] = useState<"rooms" | "history">("rooms");
+  const [viewTab, setViewTab] = useState<"rooms" | "history" | "students">("rooms");
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
 
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const qrRotateRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [qrTimeLeft, setQrTimeLeft] = useState(120);
 
   // Check auth
   useEffect(() => {
@@ -57,6 +62,7 @@ export default function ProfessorPage() {
     setUserProfile(profile);
     fetchRooms();
     fetchAllVisitorsMonth();
+    fetchAllProfiles();
   }
 
   const fetchRooms = async () => {
@@ -66,6 +72,15 @@ export default function ProfessorPage() {
       .eq("is_active", true)
       .order("created_at", { ascending: false });
     setRooms(data || []);
+  };
+
+  const fetchAllProfiles = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("role", "student")
+      .order("created_at", { ascending: false });
+    setAllProfiles(data || []);
   };
 
   const fetchAllVisitorsMonth = async () => {
@@ -152,23 +167,82 @@ export default function ProfessorPage() {
     if (selectedRoom === roomId) {
       setSelectedRoom("");
       setQrDataUrl("");
+      if (qrRotateRef.current) {
+        clearInterval(qrRotateRef.current);
+        qrRotateRef.current = null;
+      }
     }
     fetchRooms();
   };
 
-  const handleGenerateQR = async (roomId: string) => {
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://labgate.vercel.app";
-    const roomUrl = `${baseUrl}/room/${roomId}`;
-
-    try {
-      const dataUrl = await generateQR(roomUrl);
-      setQrDataUrl(dataUrl);
-      setSelectedRoom(roomId);
-      setViewTab("rooms"); // switch to rooms view if not there
-    } catch (err) {
-      console.error("QR generation error:", err);
-      setError("Ошибка генерации QR");
+  const rotateQrToken = async (roomId: string) => {
+    const newToken = crypto.randomUUID();
+    const { error } = await supabase
+      .from("rooms")
+      .update({ qr_token: newToken, qr_token_updated_at: new Date().toISOString() })
+      .eq("id", roomId);
+    if (error) {
+      console.error("QR token rotate error:", error);
+      return null;
     }
+    return newToken;
+  };
+
+  const handleGenerateQR = async (roomId: string) => {
+    // Clear previous timer
+    if (qrRotateRef.current) clearInterval(qrRotateRef.current);
+
+    const generateWithToken = async (token: string) => {
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://labgate.vercel.app";
+      const roomUrl = `${baseUrl}/room/${roomId}?token=${token}`;
+      try {
+        const dataUrl = await generateQR(roomUrl);
+        setQrDataUrl(dataUrl);
+      } catch (err) {
+        console.error("QR generation error:", err);
+        setError("Ошибка генерации QR");
+      }
+    };
+
+    // Get current token or rotate immediately
+    const { data: room } = await supabase
+      .from("rooms")
+      .select("qr_token")
+      .eq("id", roomId)
+      .single();
+
+    const initialToken = room?.qr_token || (await rotateQrToken(roomId));
+    if (!initialToken) return;
+
+    setSelectedRoom(roomId);
+    setViewTab("rooms");
+    setQrTimeLeft(120);
+    await generateWithToken(initialToken);
+
+    // Countdown timer
+    const countdownInterval = setInterval(() => {
+      setQrTimeLeft((prev) => {
+        if (prev <= 1) return 120;
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Rotate every 2 minutes
+    const rotateInterval = setInterval(async () => {
+      const newToken = await rotateQrToken(roomId);
+      if (newToken) {
+        await generateWithToken(newToken);
+        setQrTimeLeft(120);
+      }
+    }, 120000);
+
+    qrRotateRef.current = rotateInterval;
+    // Store countdown interval in a separate ref-like approach via closure cleanup
+    // We'll clean both up on unmount
+    return () => {
+      clearInterval(countdownInterval);
+      clearInterval(rotateInterval);
+    };
   };
 
   const handleCopyLink = async () => {
@@ -178,6 +252,47 @@ export default function ProfessorPage() {
     await navigator.clipboard.writeText(roomUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, adminId: userProfile?.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Ошибка удаления");
+      setAllProfiles((prev) => prev.filter((u) => u.id !== userId));
+      setConfirmDeleteUser(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { error: err } = await supabase.from("visitors").delete().gte("scanned_at", new Date(0).toISOString());
+      if (err) throw new Error(err.message);
+      setAllVisitors([]);
+      setConfirmClearHistory(false);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteVisit = async (visitId: string) => {
+    const { error: err } = await supabase.from("visitors").delete().eq("id", visitId);
+    if (err) { setError(err.message); return; }
+    setAllVisitors((prev) => prev.filter((v) => v.id !== visitId));
   };
 
   const handleLogout = async () => {
@@ -308,14 +423,13 @@ export default function ProfessorPage() {
                       <img src={qrDataUrl} alt="QR Code" className="w-48 h-48 md:w-56 md:h-56 object-contain" />
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 w-full">
-                      <button
-                        onClick={handleCopyLink}
-                        className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-sm font-medium"
-                      >
-                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                        {copied ? "Скопировано!" : "Копировать ссылку"}
-                      </button>
+                    {/* QR rotation countdown */}
+                    <div className="flex items-center gap-2 mb-4 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                      <Clock className="w-4 h-4 text-white/40 shrink-0" />
+                      <span className="text-xs text-white/50">Обновление через</span>
+                      <span className={`text-sm font-bold tabular-nums ${qrTimeLeft <= 20 ? "text-red-400" : "text-white/80"}`}>
+                        {Math.floor(qrTimeLeft / 60)}:{String(qrTimeLeft % 60).padStart(2, "0")}
+                      </span>
                     </div>
                   </motion.div>
 
@@ -366,13 +480,35 @@ export default function ProfessorPage() {
               className="space-y-4"
             >
               <div className="glass-card p-5">
-                <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
-                  <CalendarDays className="w-5 h-5 text-white/60" />
-                  История за месяц
-                </h2>
-                <p className="text-xs text-white/40">
-                  Посещения всех лабораторий за последние 30 дней.
-                </p>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+                      <CalendarDays className="w-5 h-5 text-white/60" />
+                      История за месяц
+                    </h2>
+                    <p className="text-xs text-white/40">Посещения всех лабораторий за последние 30 дней.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={fetchAllVisitorsMonth} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-colors">
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                    {allVisitors.length > 0 && (
+                      confirmClearHistory ? (
+                        <div className="flex items-center gap-2">
+                          <button onClick={handleClearHistory} disabled={loading} className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-medium transition-colors disabled:opacity-50">
+                            {loading ? "..." : "Очистить"}
+                          </button>
+                          <button onClick={() => setConfirmClearHistory(false)} className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs transition-colors">Отмена</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmClearHistory(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 text-xs transition-colors">
+                          <Trash2 className="w-3 h-3" />
+                          Очистить
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="glass p-2">
@@ -381,25 +517,71 @@ export default function ProfessorPage() {
                 ) : (
                   <div className="flex flex-col gap-1">
                     {allVisitors.map((v) => (
-                      <div key={v.id} className="flex flex-col p-3 rounded-xl hover:bg-white/5 transition-colors">
-                        <div className="flex justify-between items-start mb-1">
-                          <p className="text-sm font-medium text-white">{v.name}</p>
-                          <span className="text-[10px] text-white/40 whitespace-nowrap bg-white/5 px-2 py-0.5 rounded-full">
-                            {new Date(v.scanned_at).toLocaleString("ru-RU", {
-                              day: "numeric",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                      <div key={v.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{v.name}</p>
+                          <p className="text-xs text-white/40 flex items-center gap-1">
+                            <DoorOpen className="w-3 h-3" />
+                            {v.rooms?.name || "Удаленная комната"}
+                          </p>
+                          <span className="text-[10px] text-white/30">
+                            {new Date(v.scanned_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
-                        <p className="text-xs text-white/40 flex items-center gap-1">
-                          <DoorOpen className="w-3 h-3" />
-                          {v.rooms?.name || "Удаленная комната"}
-                        </p>
+                        <button onClick={() => handleDeleteVisit(v.id)} className="shrink-0 p-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-colors ml-2">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Students Tab */}
+          {viewTab === "students" && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="glass-card p-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-white/60" />
+                    Студенты
+                  </h2>
+                  <p className="text-xs text-white/40">Все зарегистрированные студенты.</p>
+                </div>
+                <button onClick={fetchAllProfiles} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-colors">
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="glass p-2 space-y-1">
+                {allProfiles.length === 0 ? (
+                  <p className="text-center text-white/30 py-10 text-sm font-medium">Нет студентов.</p>
+                ) : (
+                  allProfiles.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white/90 truncate">{u.username}</p>
+                        <p className="text-xs text-white/30">{new Date(u.created_at).toLocaleDateString("ru-RU")}</p>
+                      </div>
+                      {confirmDeleteUser === u.id ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => handleDeleteUser(u.id)} disabled={loading} className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-medium transition-colors disabled:opacity-50">
+                            {loading ? "..." : "Удалить"}
+                          </button>
+                          <button onClick={() => setConfirmDeleteUser(null)} className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs transition-colors">Отмена</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteUser(u.id)} className="shrink-0 p-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
             </motion.div>
@@ -429,6 +611,16 @@ export default function ProfessorPage() {
           >
             <CalendarDays className="w-6 h-6" />
             <span className="text-[10px] font-medium">История</span>
+          </button>
+
+          <button
+            onClick={() => setViewTab("students")}
+            className={`flex flex-col items-center gap-1 w-full py-2 rounded-xl transition-all ${
+              viewTab === "students" ? "text-white" : "text-white/40 hover:text-white"
+            }`}
+          >
+            <GraduationCap className="w-6 h-6" />
+            <span className="text-[10px] font-medium">Студенты</span>
           </button>
 
           <button
