@@ -78,7 +78,7 @@ create policy "Professors can insert rooms" on public.rooms
 
 drop policy if exists "Professors can update own rooms" on public.rooms;
 create policy "Professors can update own rooms" on public.rooms
-  for update using (is_professor());
+  for update using (is_professor()) with check (is_professor());
 
 -- Visitors: Students can insert their own visit. Professors can see visits.
 drop policy if exists "Students can insert visit" on public.visitors;
