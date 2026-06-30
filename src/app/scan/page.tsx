@@ -177,6 +177,21 @@ export default function ScanPage() {
         return;
       }
 
+      // Check if student already registered in this room
+      const { data: existingVisit } = await supabase
+        .from("visitors")
+        .select("id")
+        .eq("room_id", roomId)
+        .eq("profile_id", user.id)
+        .maybeSingle();
+
+      if (existingVisit) {
+        setRoomName(room.name);
+        setScanState("success");
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        return;
+      }
+
       // Register visit
       const { error: visitError } = await supabase.from("visitors").insert({
         room_id: roomId,
@@ -186,7 +201,6 @@ export default function ScanPage() {
 
       if (visitError) {
         console.error("Visit insert error:", visitError);
-        // Handle duplicate entry gracefully
         if (visitError.code === "23505" || visitError.message?.includes("duplicate")) {
           setRoomName(room.name);
           setScanState("success");

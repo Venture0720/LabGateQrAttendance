@@ -85,6 +85,10 @@ drop policy if exists "Students can insert visit" on public.visitors;
 create policy "Students can insert visit" on public.visitors
   for insert with check (auth.uid() = profile_id);
 
+drop policy if exists "Students can view own visits" on public.visitors;
+create policy "Students can view own visits" on public.visitors
+  for select using (auth.uid() = profile_id);
+
 drop policy if exists "Professors can view visits" on public.visitors;
 create policy "Professors can view visits" on public.visitors
   for select using (is_professor());
