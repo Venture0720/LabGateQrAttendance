@@ -5,13 +5,14 @@ import PWAProvider from "@/components/PWAProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
+
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -40,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}>
+    <html lang="ru" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}>
       <body className="min-h-full flex flex-col bg-[#030712] text-white selection:bg-white/20">
         <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 bg-[#030712]">
           <div className="liquid-blob w-[500px] h-[500px] -top-48 -left-24 opacity-[0.07]" />
