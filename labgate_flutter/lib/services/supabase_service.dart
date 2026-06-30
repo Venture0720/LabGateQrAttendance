@@ -75,6 +75,16 @@ class SupabaseService {
         .eq('id', roomId);
   }
 
+  static Future<Map<String, dynamic>?> getRoomWithToken(String roomId) async {
+    final data = await client
+        .from('rooms')
+        .select('id, name, is_active, qr_token')
+        .eq('id', roomId)
+        .eq('is_active', true)
+        .maybeSingle();
+    return data;
+  }
+
   // тФАтФА Visitors тФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФАтФА
 
   static Future<List<Visitor>> getVisitorsByRoom(String roomId) async {

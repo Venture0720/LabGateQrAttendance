@@ -48,17 +48,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
           caseSensitive: false);
 
-      // Try to extract UUID from URL path /room/UUID first
-      final urlMatch = RegExp(r'/room/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', caseSensitive: false)
-          .firstMatch(rawValue.trim());
+      // Try to extract UUID from URL path /room/UUID?token=TOKEN first
+      final urlMatch = RegExp(
+        r'/room/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?token=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?',
+        caseSensitive: false,
+      ).firstMatch(rawValue.trim());
       final roomId = urlMatch != null
           ? urlMatch.group(1)!
           : (uuidRegex.hasMatch(rawValue.trim()) ? rawValue.trim() : null);
+      final qrToken = urlMatch?.group(2);
 
       if (roomId == null) {
         setState(() {
           _state = _ScanState.error;
-          _errorMsg = '╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ QR-╨║╨╛╨┤. ╨Ш╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╣╤В╨╡ QR ╨╛╤В LabGate.';
+          _errorMsg = 'Неверный QR-код. Используйте QR от LabGate.';
         });
         return;
       }
@@ -76,13 +79,21 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         return;
       }
 
-      // Get room info
-      final rooms = await SupabaseService.getRooms();
-      final room = rooms.where((r) => r.id == roomId).firstOrNull;
-      if (room == null) {
+      // Get room info with qr_token
+      final roomData = await SupabaseService.getRoomWithToken(roomId);
+      if (roomData == null) {
         setState(() {
           _state = _ScanState.error;
-          _errorMsg = '╨Ъ╨╛╨╝╨╜╨░╤В╨░ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╨░ ╨╕╨╗╨╕ ╨╜╨╡╨░╨║╤В╨╕╨▓╨╜╨░.';
+          _errorMsg = 'Комната не найдена или неактивна.';
+        });
+        return;
+      }
+
+      // Validate QR token if present
+      if (qrToken != null && roomData['qr_token'] != null && qrToken != roomData['qr_token']) {
+        setState(() {
+          _state = _ScanState.error;
+          _errorMsg = 'QR-код устарел. Попросите преподавателя показать актуальный QR-код.';
         });
         return;
       }
@@ -96,7 +107,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
       setState(() {
         _state = _ScanState.success;
-        _roomName = room.name;
+        _roomName = roomData['name'] as String? ?? roomId;
       });
 
       // Auto-return after 3 seconds
@@ -105,7 +116,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     } catch (e) {
       setState(() {
         _state = _ScanState.error;
-        _errorMsg = '╨Ю╤И╨╕╨▒╨║╨░: ${e.toString()}';
+        _errorMsg = 'Ошибка: ${e.toString()}';
       });
     }
   }
