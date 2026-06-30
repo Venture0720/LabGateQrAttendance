@@ -278,7 +278,7 @@ export default function ProfessorPage() {
     setLoading(true);
     setError("");
     try {
-      const { error: err } = await supabase.from("visitors").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      const { error: err } = await supabase.from("visitors").delete().gte("scanned_at", new Date(0).toISOString());
       if (err) throw new Error(err.message);
       setAllVisitors([]);
       setConfirmClearHistory(false);
