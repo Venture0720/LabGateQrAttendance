@@ -6,7 +6,7 @@
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade primary key,
   username text unique not null,
-  role text not null check (role in ('professor', 'student', 'admin')),
+  role text not null check (role in ('professor', 'student')),
   created_at timestamptz not null default now()
 );
 
@@ -50,15 +50,6 @@ grant select, insert, delete on public.visitors to authenticated;
 
 -- 4. RLS Policies
 
--- Helper function to check if user is admin
-create or replace function public.is_admin()
-returns boolean as $$
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
-  );
-$$ language sql security definer;
-
 -- Helper function to check if user is a professor (avoids recursion and works for manual users)
 create or replace function public.is_professor()
 returns boolean as $$
@@ -77,13 +68,9 @@ drop policy if exists "Professors can view all profiles" on public.profiles;
 create policy "Professors can view all profiles" on public.profiles
   for select using (is_professor());
 
-drop policy if exists "Admins can view all profiles" on public.profiles;
-create policy "Admins can view all profiles" on public.profiles
-  for select using (is_admin());
-
-drop policy if exists "Admins can delete profiles" on public.profiles;
-create policy "Admins can delete profiles" on public.profiles
-  for delete using (is_admin());
+drop policy if exists "Professors can delete profiles" on public.profiles;
+create policy "Professors can delete profiles" on public.profiles
+  for delete using (is_professor());
 
 -- Rooms: Anyone authenticated can read active rooms. Professors can manage rooms.
 drop policy if exists "Everyone can view active rooms" on public.rooms;
@@ -116,13 +103,9 @@ drop policy if exists "Professors can view visits" on public.visitors;
 create policy "Professors can view visits" on public.visitors
   for select using (is_professor());
 
-drop policy if exists "Admins can view all visits" on public.visitors;
-create policy "Admins can view all visits" on public.visitors
-  for select using (is_admin());
-
-drop policy if exists "Admins can delete visits" on public.visitors;
-create policy "Admins can delete visits" on public.visitors
-  for delete using (is_admin());
+drop policy if exists "Professors can delete visits" on public.visitors;
+create policy "Professors can delete visits" on public.visitors
+  for delete using (is_professor());
 
 -- Migration: add qr_token columns if they don't exist yet
 do $$

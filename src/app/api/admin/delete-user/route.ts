@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       .eq("id", adminId)
       .single();
 
-    if (adminProfile?.role !== "admin") {
+    if (adminProfile?.role !== "professor" && adminProfile?.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
