@@ -100,6 +100,12 @@ export default function LoginPage() {
       const dbRole = profile.role?.toLowerCase().trim();
       const expectedRole = selected?.toLowerCase().trim();
 
+      // Admin can log in without selecting a role
+      if (dbRole === "admin") {
+        router.push("/admin");
+        return;
+      }
+
       if (dbRole !== expectedRole) {
         await supabase.auth.signOut();
         setError(`У вас нет прав для входа как ${roleConfig[selected].label}`);

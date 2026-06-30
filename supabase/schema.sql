@@ -6,7 +6,7 @@
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade primary key,
   username text unique not null,
-  role text not null check (role in ('professor', 'student')),
+  role text not null check (role in ('professor', 'student', 'admin')),
   created_at timestamptz not null default now()
 );
 
@@ -14,8 +14,7 @@ create table if not exists public.profiles (
 alter table public.profiles enable row level security;
 
 -- Grant access to authenticated users
-grant select on public.profiles to authenticated;
-grant insert on public.profiles to authenticated;
+grant select, insert, delete on public.profiles to authenticated;
 
 -- 2. Rooms
 create table if not exists public.rooms (
@@ -23,7 +22,9 @@ create table if not exists public.rooms (
   name text not null,
   created_at timestamptz not null default now(),
   is_active boolean not null default true,
-  created_by uuid references public.profiles(id) default auth.uid()
+  created_by uuid references public.profiles(id) default auth.uid(),
+  qr_token uuid not null default gen_random_uuid(),
+  qr_token_updated_at timestamptz not null default now()
 );
 
 -- Enable RLS on rooms
@@ -45,9 +46,18 @@ create table if not exists public.visitors (
 alter table public.visitors enable row level security;
 
 -- Grant access to authenticated users
-grant select, insert on public.visitors to authenticated;
+grant select, insert, delete on public.visitors to authenticated;
 
 -- 4. RLS Policies
+
+-- Helper function to check if user is admin
+create or replace function public.is_admin()
+returns boolean as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
+  );
+$$ language sql security definer;
 
 -- Helper function to check if user is a professor (avoids recursion and works for manual users)
 create or replace function public.is_professor()
@@ -58,7 +68,7 @@ returns boolean as $$
   );
 $$ language sql security definer;
 
--- Profiles: Users can read their own profile. Professors can read all profiles.
+-- Profiles: Users can read their own profile. Professors and admins can read all profiles.
 drop policy if exists "Users can view own profile" on public.profiles;
 create policy "Users can view own profile" on public.profiles
   for select using (auth.uid() = id);
@@ -67,10 +77,22 @@ drop policy if exists "Professors can view all profiles" on public.profiles;
 create policy "Professors can view all profiles" on public.profiles
   for select using (is_professor());
 
+drop policy if exists "Admins can view all profiles" on public.profiles;
+create policy "Admins can view all profiles" on public.profiles
+  for select using (is_admin());
+
+drop policy if exists "Admins can delete profiles" on public.profiles;
+create policy "Admins can delete profiles" on public.profiles
+  for delete using (is_admin());
+
 -- Rooms: Anyone authenticated can read active rooms. Professors can manage rooms.
 drop policy if exists "Everyone can view active rooms" on public.rooms;
 create policy "Everyone can view active rooms" on public.rooms
   for select using (is_active = true);
+
+drop policy if exists "Professors can view own rooms" on public.rooms;
+create policy "Professors can view own rooms" on public.rooms
+  for select using (is_professor() and created_by = auth.uid());
 
 drop policy if exists "Professors can insert rooms" on public.rooms;
 create policy "Professors can insert rooms" on public.rooms
@@ -78,9 +100,10 @@ create policy "Professors can insert rooms" on public.rooms
 
 drop policy if exists "Professors can update own rooms" on public.rooms;
 create policy "Professors can update own rooms" on public.rooms
-  for update using (is_professor()) with check (is_professor());
+  for update using (is_professor() and created_by = auth.uid())
+  with check (is_professor());
 
--- Visitors: Students can insert their own visit. Professors can see visits.
+-- Visitors: Students can insert their own visit. Professors and admins can see/delete visits.
 drop policy if exists "Students can insert visit" on public.visitors;
 create policy "Students can insert visit" on public.visitors
   for insert with check (auth.uid() = profile_id);
@@ -92,6 +115,26 @@ create policy "Students can view own visits" on public.visitors
 drop policy if exists "Professors can view visits" on public.visitors;
 create policy "Professors can view visits" on public.visitors
   for select using (is_professor());
+
+drop policy if exists "Admins can view all visits" on public.visitors;
+create policy "Admins can view all visits" on public.visitors
+  for select using (is_admin());
+
+drop policy if exists "Admins can delete visits" on public.visitors;
+create policy "Admins can delete visits" on public.visitors
+  for delete using (is_admin());
+
+-- Migration: add qr_token columns if they don't exist yet
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'rooms' and column_name = 'qr_token'
+  ) then
+    alter table public.rooms add column qr_token uuid not null default gen_random_uuid();
+    alter table public.rooms add column qr_token_updated_at timestamptz not null default now();
+  end if;
+end $$;
 
 -- 5. Realtime
 do $$
